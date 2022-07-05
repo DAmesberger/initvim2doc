@@ -1,5 +1,5 @@
 [package]
-name = "initvim2cheatsheet"
+name = "initvimparse"
 version = "0.1.0"
 edition = "2021"
 
