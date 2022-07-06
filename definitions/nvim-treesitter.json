@@ -1,0 +1,66 @@
+{
+  "configs": {
+    "textobjects": {
+      "select": {
+        "keymaps": {
+          "@function_outer": {
+            "description": "Selection of outer function"
+          },
+          "@function_inner": {
+            "description": "Selection of inner function"
+          },
+          "@class_outer": {
+            "description": "Selection of inner class"
+          },
+          "@block_outer": {
+            "description": "Selection of inner block"
+          }
+        }
+      },
+      "move": {
+        "goto_next_start": {
+          "@function_outer": {
+            "description": "Move to start of outer function"
+          },
+          "@class_outer": {
+            "description": "Move to start of outer class"
+          }
+        },
+        "goto_next_end": {
+          "@function_outer": {
+            "description": "Move to end of outer function"
+          },
+          "@class_outer": {
+            "description": "Move to end of outer class"
+          }
+        },
+        "goto_previous_start": {
+          "@function_outer": {
+            "description": "Move to start of previous outer function"
+          },
+          "@class_outer": {
+            "description": "Move to start of previous outer class"
+          }
+        },
+        "goto_previous_end": {
+          "@function_outer": {
+            "description": "Move to end of previous outer function"
+          },
+          "@class_outer": {
+            "description": "Move to end of previous outer class"
+          }
+        }
+      },
+      "lsp_interop": {
+        "peek_definition_code": {
+          "@function_outer": {
+            "description": "Peek the definition of outer function"
+          },
+          "@class_outer": {
+            "description": "Peek the definition of outer class"
+          }
+        }
+      }
+    }
+  }
+}

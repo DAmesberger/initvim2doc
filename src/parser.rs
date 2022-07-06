@@ -5,9 +5,9 @@ use analisar::aware::{
 };
 use thiserror::Error;
 use regex::Regex;
-use std::cell::Cell;
-use std::collections::HashMap;
 use std::io::{prelude::*, BufReader};
+
+use crate::{ Keybinding, KeybindingDoc };
 
 #[derive(Error, Debug)]
 pub enum ParseError {
@@ -26,15 +26,15 @@ enum ParseMode {
     Lua,
 }
 
-pub fn parse<R>(reader: BufReader<R>) -> Result<HashMap<String, String>, ParseError>
+pub fn parse<R>(reader: BufReader<R>) -> Result<Vec<Keybinding>, ParseError>
 where
     R: Read,
 {
     let map_regex = Regex::new(
-        r"^(?P<prefix>.*?)map\s(?P<silent><silent>\s)?(?P<shortcut>.*?)\s+(?P<command>.*)$",
+        r"^(?P<mode>[nvsxomilct])?(?P<nonrecursive>nore)?map\s(?P<silent><silent>\s)?(?P<shortcut>.*?)\s+(?P<command>.*)$",
     ).unwrap(); //this should never fail
 
-    let mut keymaps: HashMap<String, String> = HashMap::new();
+    let mut keymaps: Vec<Keybinding> = vec![];
 
     let mut comment_lines = vec![];
     let mut lua_code = String::new();
@@ -48,12 +48,8 @@ where
                 return Err(ParseError::UnmatchedEOF(linenumber));
             }
 
-            if let Some(values) = parse_lua(&lua_code) {
-                for value in values {
-                    if let Some((key, value)) = value.split_once(':') {
-                        keymaps.insert(format!("{}.description", key), value.to_string());
-                    }
-                }
+            if let Some(ref mut values) = parse_lua(&lua_code) {
+                keymaps.append(values);
             };
             parse_mode = ParseMode::Unknown;
         }
@@ -78,9 +74,16 @@ where
             let command = capture.name("command");
 
             if let (Some(shortcut), Some(command)) = (shortcut, command) {
-                if parse_mode == ParseMode::Comment {
-                    println!("{}:\n\t{}", shortcut.as_str(), comment_lines.join("\n"));
-                }
+                let doc = if parse_mode == ParseMode::Comment {
+                    Some(KeybindingDoc { description: comment_lines.join(" "), examples: None })
+                } else { None };
+
+                keymaps.push(Keybinding {
+                    root: String::new(),
+                    keymap: shortcut.as_str().to_owned(),
+                    command: command.as_str().to_owned(),
+                    doc 
+                });
             }
             parse_mode = ParseMode::Map;
             comment_lines.clear(); //remove comments
@@ -142,7 +145,7 @@ fn args_to_table<'a>(args: &'a Args) -> Option<&'a Table<'a>> {
     }
 }
 
-fn parse_lua(lua_code: &str) -> Option<Vec<String>> {
+fn parse_lua(lua_code: &str) -> Option<Vec<Keybinding>> {
     if let Some(Ok(swc)) = Parser::new(lua_code.as_bytes()).next() {
         if let Statement::Expression(Expression::FuncCall(f)) = swc.statement {
             if let Expression::Suffixed(s) = &*f.prefix {
@@ -172,26 +175,23 @@ fn parse_lua(lua_code: &str) -> Option<Vec<String>> {
     None
 }
 
-fn create_map(name: &str, value: &str, f: &FunctionCall) -> Vec<String> {
+fn create_map(name: &str, value: &str, f: &FunctionCall) -> Vec<Keybinding> {
     let mut mappings = vec![];
 
-    let name = name.to_string();
-    let value = value[1..value.len() - 1].to_string();
+    let name = name.to_owned();
+    let value = value[1..value.len() - 1].to_owned();
     if let Some(table) = args_to_table(&f.args) {
         if let ("require", root) = (name.as_str(), value.as_str()) {
-            let results = walk_fields(&table.field_list);
-            for result in results {
-                mappings.push(format!(".{}.{}", root, result.into_inner()));
-            }
-
-            //println!("{:#?}", &mappings);
+            let (root, prefix) = root.split_once('.')
+                .map_or((root, String::from(".")), |(root, prefix)| (root, format!(".{}.", prefix)));
+            mappings.append(&mut walk_fields(root, &prefix, &table.field_list));
         };
     };
 
     mappings
 }
 
-fn walk_fields(field_list: &Vec<Field>) -> Vec<Cell<String>> {
+fn walk_fields(root: &str, prefix: &str, field_list: &Vec<Field>) -> Vec<Keybinding> {
     let mut paths = vec![];
     for field in field_list {
         match field {
@@ -203,7 +203,7 @@ fn walk_fields(field_list: &Vec<Field>) -> Vec<Cell<String>> {
             } => {
                 //generate pathname
                 let pathname = match &name {
-                    Expression::Name(name) => Some(format!("{}.", name.name)),
+                    Expression::Name(name) => Some(format!("{}{}.", prefix, name.name)),
                     _ => None,
                 };
 
@@ -212,10 +212,10 @@ fn walk_fields(field_list: &Vec<Field>) -> Vec<Cell<String>> {
                         Some((lh.value.to_string(), rh.value.to_string()))
                     }
                     (_, Expression::TableCtor(t)) => {
-                        let child_paths = walk_fields(&t.field_list);
+                        let child_paths = walk_fields(root, "", &t.field_list);
                         if let Some(pathname) = &pathname {
                             for mut child in child_paths {
-                                child.get_mut().insert_str(0, pathname.as_str());
+                                child.command.insert_str(0, pathname.as_str());
                                 paths.push(child);
                             }
                         }
@@ -227,8 +227,12 @@ fn walk_fields(field_list: &Vec<Field>) -> Vec<Cell<String>> {
                     //TODO: do this nicer and in a safe way
                     let rh = &rh.as_str()[1..rh.len() - 1];
                     let lh = &lh.as_str()[1..lh.len() - 1];
-                    let leaf =
-                        Cell::new(format!("{}:{}", rh.replace(".", "_"), lh.replace(".", "_")));
+                    let leaf = Keybinding {
+                        root: root.to_owned(),
+                        keymap: lh.to_string(),
+                        command: rh.replace('.', "_"),
+                        doc: None
+                    };
                     paths.push(leaf);
                 }
             }

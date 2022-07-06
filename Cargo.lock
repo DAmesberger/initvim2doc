@@ -302,6 +302,8 @@ dependencies = [
  "clap",
  "color-eyre",
  "regex",
+ "serde",
+ "serde_derive",
  "serde_json",
  "shellexpand",
  "thiserror",
