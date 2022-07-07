@@ -1,0 +1,46 @@
+{
+  "keymaps": {
+    "hunk_up": {
+      "description": "Hunk Up"
+    },
+    "hunk_down": {
+      "description": "Hunk Down"
+    },
+    "buffer_hunk_stage": {
+      "description": "Buffer Hunk Stage"
+    },
+    "buffer_hunk_preview": {
+      "description": "Buffer Hunk Preview"
+    },
+    "buffer_blame_preview": {
+      "description": "Buffer Blame Preview"
+    },
+    "buffer_diff_preview": {
+      "description": "Buffer Diff Preview"
+    },
+    "buffer_history_preview": {
+      "description": "Buffer History Preview"
+    },
+    "buffer_reset": {
+      "description": "Buffer Reset"
+    },
+    "buffer_gutter_blame_preview": {
+      "description": "Buffer Gutter Blame Preview"
+    },
+    "project_hunks_preview": {
+      "description": "Project Hunks Preview"
+    },
+    "project_diff_preview": {
+      "description": "Project Diff Preview"
+    },
+    "project_hunks_qf": {
+      "description": "Project Hunks Qf"
+    },
+    "toggle_diff_preference": {
+      "description": "Toggle Diff Preference"
+    },
+    "toggle_live_gutter": {
+      "description": "Toggle Live Gutter"
+    }
+  }
+}
