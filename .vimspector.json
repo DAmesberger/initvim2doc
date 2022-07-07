@@ -5,7 +5,7 @@
       "filetypes": [ "rust" ],
       "configuration": {
         "request": "launch",
-        "program": "${workspaceRoot}/target/debug/initvimparse"
+        "program": "${workspaceRoot}/target/debug/initvim2doc"
       }
     }
   }

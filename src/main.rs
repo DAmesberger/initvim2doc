@@ -1,4 +1,5 @@
 use color_eyre::Result;
+use color_eyre::eyre::Context;
 use serde_derive::Deserialize;
 use std::io::BufReader;
 use std::{collections::HashMap, fs::File};
@@ -46,7 +47,8 @@ fn main() -> Result<()> {
     let mut definitions: HashMap<String, HashEntry> = HashMap::new();
 
     let definitions_dir = shellexpand::tilde(&app.definitions);
-    for de in std::fs::read_dir(&*definitions_dir)? {
+    for de in std::fs::read_dir(&*definitions_dir)
+        .wrap_err_with(|| format!("cannot get files from defitions folder {}", definitions_dir))? {
         match de {
             Ok(dir) => {
                 if let Some(dir) = dir.path().to_str() {
