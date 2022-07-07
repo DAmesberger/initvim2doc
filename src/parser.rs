@@ -3,19 +3,19 @@ use analisar::aware::{
     ast::{Expression, Statement, Suffixed},
     Parser,
 };
-use thiserror::Error;
 use regex::Regex;
 use std::io::{prelude::*, BufReader};
+use thiserror::Error;
 
-use crate::{ Keybinding, KeybindingDoc };
+use crate::{Keybinding, KeybindingDoc};
 
 #[derive(Error, Debug)]
 pub enum ParseError {
     #[error("Error in line {0}, line starting with lua but is not 'lua <<EOF'")]
     InvalidLuaBlock(usize),
-    
+
     #[error("Error in line {0}, EOF without matching 'lua <<EOF' before")]
-    UnmatchedEOF(usize)
+    UnmatchedEOF(usize),
 }
 
 #[derive(PartialEq)]
@@ -75,14 +75,19 @@ where
 
             if let (Some(shortcut), Some(command)) = (shortcut, command) {
                 let doc = if parse_mode == ParseMode::Comment {
-                    Some(KeybindingDoc { description: comment_lines.join(" "), examples: None })
-                } else { None };
+                    Some(KeybindingDoc {
+                        description: comment_lines.join(" ").trim().to_owned(),
+                        examples: None,
+                    })
+                } else {
+                    None
+                };
 
                 keymaps.push(Keybinding {
                     root: String::new(),
                     keymap: shortcut.as_str().to_owned(),
                     command: command.as_str().to_owned(),
-                    doc 
+                    doc,
                 });
             }
             parse_mode = ParseMode::Map;
@@ -182,8 +187,11 @@ fn create_map(name: &str, value: &str, f: &FunctionCall) -> Vec<Keybinding> {
     let value = value[1..value.len() - 1].to_owned();
     if let Some(table) = args_to_table(&f.args) {
         if let ("require", root) = (name.as_str(), value.as_str()) {
-            let (root, prefix) = root.split_once('.')
-                .map_or((root, String::from(".")), |(root, prefix)| (root, format!(".{}.", prefix)));
+            let (root, prefix) = root
+                .split_once('.')
+                .map_or((root, String::from(".")), |(root, prefix)| {
+                    (root, format!(".{}.", prefix))
+                });
             mappings.append(&mut walk_fields(root, &prefix, &table.field_list));
         };
     };
@@ -207,37 +215,48 @@ fn walk_fields(root: &str, prefix: &str, field_list: &Vec<Field>) -> Vec<Keybind
                     _ => None,
                 };
 
-                if let Some((lh, rh)) = match (name, value) {
-                    (Expression::LiteralString(lh), Expression::LiteralString(rh)) => {
-                        Some((lh.value.to_string(), rh.value.to_string()))
-                    }
-                    (_, Expression::TableCtor(t)) => {
+                if let (_, Expression::TableCtor(t)) = (name, value) {
+                    if let Some(pathname) = &pathname {
                         let child_paths = walk_fields(root, "", &t.field_list);
-                        if let Some(pathname) = &pathname {
-                            for mut child in child_paths {
-                                child.command.insert_str(0, pathname.as_str());
-                                paths.push(child);
-                            }
+                        for mut child in child_paths {
+                            child.command.insert_str(0, pathname.as_str());
+                            paths.push(child);
                         }
-                        None
+                    }
+                };
+
+                // generate lh and rh texts from AST if possible
+                // we only do that for (Name, LiteralString) and (LiteralString, LiteralString)
+                let lhrh = match (name, value) {
+                    (Expression::LiteralString(lh), Expression::LiteralString(rh)) => {
+                        let lh = lh.value[1..lh.value.len() - 1].to_string();
+                        let rh = rh.value[1..rh.value.len() - 1].to_string();
+
+                        Some((lh, rh))
+                    }
+                    (Expression::Name(lh), Expression::LiteralString(rh)) => {
+                        let lh = lh.name.to_string();
+                        let rh = rh.value[1..rh.value.len() - 1].to_string();
+
+                        //we switch rh and lh for (Name, LiteralString)
+                        //since the keybinding appears on the rh side here (as opposed to the
+                        //LiteralString tuple)
+                        Some((rh, lh))
                     }
                     (_lh, _rh) => None,
-                } {
-                    //remove quotes
-                    //TODO: do this nicer and in a safe way
-                    let rh = &rh.as_str()[1..rh.len() - 1];
-                    let lh = &lh.as_str()[1..lh.len() - 1];
+                };
+
+                if let Some((lh, rh)) = lhrh {
                     let leaf = Keybinding {
                         root: root.to_owned(),
                         keymap: lh.to_string(),
                         command: rh.replace('.', "_"),
-                        doc: None
+                        doc: None,
                     };
                     paths.push(leaf);
                 }
             }
             Field::List { value: _, sep: _ } => {
-                //println!("list: {:#?}", value);
             }
         }
     }

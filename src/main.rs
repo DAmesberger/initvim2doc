@@ -11,6 +11,8 @@ struct App {
     initvim: String,
     #[clap(short, long, default_value = "~/.config/nvim/definitions")]
     definitions: String,
+    #[clap(short)]
+    show_missing_docs: bool,
 }
 
 use access_json::JSONQuery;
@@ -59,11 +61,15 @@ fn main() -> Result<()> {
         }
     }
 
-    map_keymaps_to_doc(&mut keymaps, definitions)?;
+    map_keymaps_to_doc(&mut keymaps, definitions, app.show_missing_docs)?;
 
     for keymap in keymaps {
         if let Some(doc) = keymap.doc {
-            println!("{}\t\t{}", keymap.keymap, doc.description);
+            if keymap.root.is_empty() {
+                println!("{: <15}{}", keymap.keymap, doc.description);
+            } else {
+                println!("{: <15}({}) {}", keymap.keymap, keymap.root, doc.description);
+            }
         }
     }
 
@@ -79,18 +85,21 @@ enum HashEntry {
 fn map_keymaps_to_doc(
     keymaps: &mut Vec<Keybinding>,
     mut definitions: HashMap<String, HashEntry>,
+    show_missing_docs: bool,
 ) -> Result<()> {
 
-    fn lookup_keymap(keybind: &mut Keybinding, doc: &Value) -> Result<()> {
-        if keybind.doc.is_none() {
+    fn lookup_keymap(keybind: &mut Keybinding, doc: &Value, show_missing_docs: bool) -> Result<()> {
+        if keybind.doc.is_none() && keybind.command.starts_with('.') {
             if let Ok(Some(output)) = JSONQuery::parse(&keybind.command)?.execute(doc) {
                 keybind.doc = Some(serde_json::from_value::<KeybindingDoc>(output)?);
+            } else if show_missing_docs {
+                println!("cannot find doc for {} in ({})", keybind.command, keybind.root);
             }
         }
         Ok(())
     }
 
-    for mut keymap in keymaps {
+    for keymap in keymaps {
         let entry = definitions.get(&keymap.root);
         if let Some(entry) = entry {
             match entry {
@@ -100,7 +109,7 @@ fn map_keymaps_to_doc(
                         Ok(content) => {
                             match serde_json::from_str(&content) {
                                 Ok(value) => {
-                                    lookup_keymap(keymap, &value)?;
+                                    lookup_keymap(keymap, &value, show_missing_docs)?;
                                     *(definitions.get_mut(&keymap.root).unwrap()) =
                                         HashEntry::Value(value);
                                 }
@@ -123,7 +132,7 @@ fn map_keymaps_to_doc(
                     };
                 }
                 HashEntry::Value(value) => {
-                    lookup_keymap(keymap, value)?;
+                    lookup_keymap(keymap, value, show_missing_docs)?;
                 }
                 HashEntry::Unresolvable => {
                     //we cannot do anything here, matching definition was not found
