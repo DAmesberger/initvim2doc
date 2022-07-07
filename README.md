@@ -16,5 +16,5 @@ Daniel Amesberger – [@DAmesberger](https://twitter.com/DAmesberger) – daniel
 
 Distributed under the MIT license. See ``LICENSE`` for more information.
 
-[https://github.com/DAmesberger/github-link](https://github.com/dbader/)
+[https://github.com/DAmesberger/](https://github.com/DAmesberger/)
 
